@@ -65,3 +65,40 @@ Route::get('/db/records/{table}', function (Request $request, $table) {
         'records' => $rows,
     ]);
 });
+
+Route::get('/mostrarlecciones/{id}', function ($id) {
+    // 1. Buscar la lección
+    $leccion = DB::table('leccion')->where('id', $id)->first();
+    if (! $leccion) {
+        return response()->json([
+            'error' => "Lección con id {$id} no encontrada"
+        ], 404);
+    }
+
+    // 2. Recuperar niveles de esa lección
+    $niveles = DB::table('nivel')
+                 ->where('leccion_id', $id)
+                 ->get()
+                 ->map(function ($nivel) {
+                     // 3. Para cada nivel, traer sus preguntas
+                     $preguntas = DB::table('pregunta')
+                                    ->where('nivel_id', $nivel->id)
+                                    ->get()
+                                    ->map(function ($pregunta) {
+                                        // 4. Para cada pregunta, traer sus opciones
+                                        $opciones = DB::table('opciones')
+                                                      ->where('pregunta_id', $pregunta->id)
+                                                      ->get();
+                                        // Agrega el array de opciones al objeto pregunta
+                                        $pregunta->opciones = $opciones;
+                                        return $pregunta;
+                                    });
+                     // Agrega el array de preguntas al objeto nivel
+                     $nivel->preguntas = $preguntas;
+                     return $nivel;
+                 });
+
+    // 5. Montar la respuesta
+    $leccion->niveles = $niveles;
+    return response()->json($leccion);
+});
